@@ -468,7 +468,7 @@ except:
 class FFPlumed(ForceField):
     """Direct PLUMED interface
 
-    Computes forces from a PLUMED input. 
+    Computes forces from a PLUMED input.
 
     Attributes:
         parameters: A dictionary of the parameters used by the driver. Of the
@@ -477,7 +477,7 @@ class FFPlumed(ForceField):
             containing the relevant data for determining the progress of the step.
             Of the form {'atoms': atoms, 'cell': cell, 'pars': parameters,
                       'status': status, 'result': result, 'id': bead id,
-                      'start': starting time}.  
+                      'start': starting time}.
     """
 
     def __init__(self, latency=1.0e-3, name="", pars=None, dopbc=False, init_file="", plumeddat="", precision=8, plumedstep=0):
@@ -591,6 +591,106 @@ class FFPlumed(ForceField):
         self.plumed.cmd("prepareCalc");
         self.plumed.cmd("performCalcNoUpdate");
         self.plumed.cmd("update")
+
+        return True
+
+
+class FFSirius(ForceField):
+
+    def __init__(self,
+                 latency=1.0e-3,
+                 name="",
+                 pars=None,
+                 dopbc=False,
+                 init_file="",
+                 sirius_config="sirius.json"):
+        import json
+        from sirius import Simulation_context, K_point_set, DFT_ground_state
+
+        super(FFSirius, self).__init__(latency, name, pars, dopbc=False)
+
+        self.init_file = init_file
+
+        siriusJson = json.load(open(sirius_config, 'r'))
+        self.ctx = Simulation_context(json.dumps(siriusJson))
+        self.ctx.initialize()
+        if "shiftk" in siriusJson["parameters"]:
+            shiftk = siriusJson["parameters"]["shiftk"]
+        else:
+            shiftk = [0, 0, 0]
+        if "ngridk" in siriusJson["parameters"]:
+            ngridk = siriusJson["parameters"]["ngridk"]
+        else:
+            ngridk = [1, 1, 1]
+
+        use_symmetry = siriusJson['parameters']['use_symmetry']
+        self.num_dft_iter = siriusJson["parameters"]["num_dft_iter"]
+        self.potential_tol = siriusJson["parameters"]["potential_tol"]
+        self.energy_tol = siriusJson["parameters"]["energy_tol"]
+        self.kpointset = K_point_set(self.ctx, ngridk, shiftk, use_symmetry)
+        self.dft_gs = DFT_ground_state(self.kpointset)
+        self.dft_gs.initial_state()
+
+        L = np.array(self.ctx.unit_cell().lattice_vectors())
+        self.invL = np.linalg.inv(L)
+
+    def poll(self):
+        """Polls the forcefield checking if there are requests that should
+        be answered, and if necessary evaluates the associated forces and energy."""
+
+        # We have to be thread-safe, as in multi-system mode this might get
+        # called by many threads at once.
+        self._threadlock.acquire()
+        try:
+            for r in self.requests:
+                if r["status"] == "Queued":
+                    r["status"] = "Running"
+                    r["t_dispatched"] = time.time()
+                    self.evaluate(r)
+        finally:
+            self._threadlock.release()
+
+    def evaluate(self, r):
+        """A wrapper function to call the SIRIUS DFT_ground_state
+        and return forces."""
+
+        from sirius import set_atom_positions
+        import json
+
+        pos = r["pos"]
+        ctx = self.ctx
+
+        pos = pos.reshape(-1, 3)
+        set_atom_positions(ctx.unit_cell(),
+                           np.mod(np.dot(self.invL, pos.T).T, 1))
+
+        rjson = self.dft_gs.find(
+            self.potential_tol,
+            self.energy_tol,
+            self.num_dft_iter,
+            write_state=False)
+        assert (rjson["converged"])
+
+        forces = np.array(self.dft_gs.forces().calc_forces_total())
+
+        v = self.dft_gs.total_energy()
+        vir = np.zeros((3, 3))
+
+        r["result"] = [v, forces.reshape(-1), vir, ""]
+        r["status"] = "Done"
+        r["t_finished"] = time.time()
+
+    def mtd_update(self, pos, cell):
+        """ Makes updates to the potential that only need to be triggered
+        upon completion of a time step. """
+        from sirius import set_atom_positions
+
+        cell = cell
+        self.invL = np.linalg.inv(np.array(cell))
+        self.ctx.unit_cell().set_lattice_vectors(*cell)
+        set_atom_positions(self.ctx,
+                           np.mod(np.dot(self.invL,
+                                         pos.reshape(-1, 3).T).T, 1))
 
         return True
 

@@ -273,6 +273,43 @@ class InputFFPlumed(InputForceField):
                         plumedstep=self.plumedstep.fetch(), init_file=self.init_file.fetch())
 
 
+class InputFFSirius(InputForceField):
+    fields = {
+        "init_file": (InputInitFile, {"default": input_default(factory=ipi.engine.initializer.InitFile, kwargs={"mode": "xyz"}),
+                                      "help": "This describes the location to read the reference structure file from."}),
+        "siriusjson": (InputValue, {"dtype": str, "default": "sirius.json", "help": "The SIRIUS json file"}),
+    }
+
+    attribs = {}
+
+    attribs.update(InputForceField.attribs)
+    fields.update(InputForceField.fields)
+
+    default_help = """ Direct SIRIUS interface """
+    default_label = "FFSirius"
+
+    def store(self, ff):
+        """
+        Keyword Arguments:
+        self --
+        ff   --
+        """
+        #TODO: implement
+        super(InputFFSirius, self).store(ff)
+        self.init_file.store(ff.init_file)
+
+    def fetch(self,):
+        """
+        Keyword Arguments:
+        self --
+        """
+        #TODO: implement
+        from ipi.engine.forcefields import FFSirius
+
+        super(InputFFSirius, self).fetch()
+        return FFSirius(name=self.name.fetch(), init_file=self.init_file.fetch(), sirius_config=self.siriusjson.fetch())
+
+
 class InputFFYaff(InputForceField):
 
     fields = {"yaffpara": (InputValue, {"dtype": str,
