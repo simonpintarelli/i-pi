@@ -8,12 +8,6 @@
   <prng>
     <seed>31415</seed>
   </prng>
-  <!-- <ffsocket mode='inet' name='pw'> -->
-  <!--   <address>localhost</address> -->
-  <!--   <port>31415</port> -->
-  <!--   <slots>4</slots> -->
-  <!--   <latency> 0.01</latency> -->
-  <!-- </ffsocket> -->
    <ffsirius name="sirius">
      <init_file mode="xyz">./init.xyz</init_file>
      <siriusjson>sirius.json</siriusjson>
