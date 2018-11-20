@@ -24,7 +24,7 @@ from ipi.utils.io import read_file
 from ipi.utils.units import unit_to_internal
 
 
-__all__ = ['ForceField', 'FFSocket', 'FFLennardJones', 'FFDebye', 'FFPlumed', 'FFYaff']
+__all__ = ['ForceField', 'FFSocket', 'FFLennardJones', 'FFDebye', 'FFPlumed', 'FFYaff', 'FFSirius']
 
 
 class ForceRequest(dict):
@@ -576,6 +576,13 @@ class FFPlumed(ForceField):
 
         return True
 
+try:
+    import json
+    from mpi4py import MPI
+    import sirius
+    have_sirius = True
+except:
+    have_sirius = False
 
 class FFSirius(ForceField):
 
@@ -584,17 +591,16 @@ class FFSirius(ForceField):
                  name="",
                  pars=None,
                  dopbc=False,
-                 init_file="",
                  sirius_config="sirius.json"):
-        import json
-        from sirius import Simulation_context, K_point_set, DFT_ground_state
 
         super(FFSirius, self).__init__(latency, name, pars, dopbc=False)
 
-        self.init_file = init_file
+        if not have_sirius:
+            raise ImportError("Cannot find sirius libraries to link to a FFSirius object/")
 
+        self.siriusjson = sirius_config
         siriusJson = json.load(open(sirius_config, 'r'))
-        self.ctx = Simulation_context(json.dumps(siriusJson))
+        self.ctx = sirius.Simulation_context(json.dumps(siriusJson))
         self.ctx.initialize()
         if "shiftk" in siriusJson["parameters"]:
             shiftk = siriusJson["parameters"]["shiftk"]
@@ -609,8 +615,8 @@ class FFSirius(ForceField):
         self.num_dft_iter = siriusJson["parameters"]["num_dft_iter"]
         self.potential_tol = siriusJson["parameters"]["potential_tol"]
         self.energy_tol = siriusJson["parameters"]["energy_tol"]
-        self.kpointset = K_point_set(self.ctx, ngridk, shiftk, use_symmetry)
-        self.dft_gs = DFT_ground_state(self.kpointset)
+        self.kpointset = sirius.K_point_set(self.ctx, ngridk, shiftk, use_symmetry)
+        self.dft_gs = sirius.DFT_ground_state(self.kpointset)
         self.dft_gs.initial_state()
 
         L = np.array(self.ctx.unit_cell().lattice_vectors())
@@ -636,14 +642,12 @@ class FFSirius(ForceField):
         """A wrapper function to call the SIRIUS DFT_ground_state
         and return forces."""
 
-        from sirius import set_atom_positions
-        import json
 
         pos = r["pos"]
         ctx = self.ctx
 
         pos = pos.reshape(-1, 3)
-        set_atom_positions(ctx.unit_cell(),
+        sirius.set_atom_positions(ctx.unit_cell(),
                            np.mod(np.dot(self.invL, pos.T).T, 1))
 
         rjson = self.dft_gs.find(
@@ -658,6 +662,7 @@ class FFSirius(ForceField):
         v = self.dft_gs.total_energy()
         vir = np.zeros((3, 3))
 
+        print "POTENTIAL ", v
         r["result"] = [v, forces.reshape(-1), vir, ""]
         r["status"] = "Done"
         r["t_finished"] = time.time()

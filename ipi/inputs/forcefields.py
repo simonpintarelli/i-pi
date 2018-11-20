@@ -8,7 +8,7 @@
 from copy import copy
 import numpy as np
 
-from ipi.engine.forcefields import ForceField, FFSocket, FFLennardJones, FFDebye, FFPlumed, FFYaff
+from ipi.engine.forcefields import ForceField, FFSocket, FFLennardJones, FFDebye, FFPlumed, FFYaff, FFSirius
 from ipi.interfaces.sockets import InterfaceSocket
 import ipi.engine.initializer
 from ipi.inputs.initializer import *
@@ -275,8 +275,6 @@ class InputFFPlumed(InputForceField):
 
 class InputFFSirius(InputForceField):
     fields = {
-        "init_file": (InputInitFile, {"default": input_default(factory=ipi.engine.initializer.InitFile, kwargs={"mode": "xyz"}),
-                                      "help": "This describes the location to read the reference structure file from."}),
         "siriusjson": (InputValue, {"dtype": str, "default": "sirius.json", "help": "The SIRIUS json file"}),
     }
 
@@ -296,7 +294,7 @@ class InputFFSirius(InputForceField):
         """
         #TODO: implement
         super(InputFFSirius, self).store(ff)
-        self.init_file.store(ff.init_file)
+        self.siriusjson.store(ff.siriusjson)
 
     def fetch(self,):
         """
@@ -304,10 +302,9 @@ class InputFFSirius(InputForceField):
         self --
         """
         #TODO: implement
-        from ipi.engine.forcefields import FFSirius
 
         super(InputFFSirius, self).fetch()
-        return FFSirius(name=self.name.fetch(), init_file=self.init_file.fetch(), sirius_config=self.siriusjson.fetch())
+        return FFSirius(name=self.name.fetch(), sirius_config=self.siriusjson.fetch())
 
 
 class InputFFYaff(InputForceField):

@@ -9,7 +9,6 @@
     <seed>31415</seed>
   </prng>
    <ffsirius name="sirius">
-     <init_file mode="xyz">./init.xyz</init_file>
      <siriusjson>sirius.json</siriusjson>
    </ffsirius>
   <system>
