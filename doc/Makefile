@@ -9,7 +9,7 @@
 all: manual.pdf
 
 aux:
-	PYTHONPATH=..:$(PYTHONPATH) python create_man.py
+	PYTHONPATH=..:$(PYTHONPATH) python2 create_man.py
 	rm -f *.pyc
 
 manual.pdf: aux
