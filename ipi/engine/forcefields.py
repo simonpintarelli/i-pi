@@ -627,7 +627,6 @@ class FFSirius(ForceField):
         pos = pos.reshape(-1, 3)
 
         rpos = np.dot(ih, pos.T).T
-        rpos = np.mod(rpos, 1)
         print('rpos:', rpos)
         siriusJson = json.load(open('sirius.json', 'r'))
 
