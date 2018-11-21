@@ -15,7 +15,7 @@
     <forces>
       <force forcefield='sirius'/>
     </forces>
-    <initialize nbeads='8'>
+    <initialize nbeads='1'>
       <file mode='pdb'> init.pdb </file>
       <velocities mode='thermal' units='kelvin'> 100 </velocities>
     </initialize>

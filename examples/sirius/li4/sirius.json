@@ -38,7 +38,7 @@
         "lattice_vectors_scale": 6.57,
         "atom_types" : ["Li"],
         "atom_files" : {
-            "Li"  : "Li.pw-mt_fhi.UPF.json"
+            "Li"  : "Li.pbe-tm.UPF.json"
         },
         "atoms" : {
             "Li": [
