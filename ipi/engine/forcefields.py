@@ -595,32 +595,11 @@ class FFSirius(ForceField):
 
         super(FFSirius, self).__init__(latency, name, pars, dopbc=False)
 
+        self.siriusjson = sirius_config
+
         if not have_sirius:
             raise ImportError("Cannot find sirius libraries to link to a FFSirius object/")
 
-        self.siriusjson = sirius_config
-        siriusJson = json.load(open(sirius_config, 'r'))
-        self.ctx = sirius.Simulation_context(json.dumps(siriusJson))
-        self.ctx.initialize()
-        if "shiftk" in siriusJson["parameters"]:
-            shiftk = siriusJson["parameters"]["shiftk"]
-        else:
-            shiftk = [0, 0, 0]
-        if "ngridk" in siriusJson["parameters"]:
-            ngridk = siriusJson["parameters"]["ngridk"]
-        else:
-            ngridk = [1, 1, 1]
-
-        use_symmetry = siriusJson['parameters']['use_symmetry']
-        self.num_dft_iter = siriusJson["parameters"]["num_dft_iter"]
-        self.potential_tol = siriusJson["parameters"]["potential_tol"]
-        self.energy_tol = siriusJson["parameters"]["energy_tol"]
-        self.kpointset = sirius.K_point_set(self.ctx, ngridk, shiftk, use_symmetry)
-        self.dft_gs = sirius.DFT_ground_state(self.kpointset)
-        self.dft_gs.initial_state()
-
-        L = np.array(self.ctx.unit_cell().lattice_vectors())
-        self.invL = np.linalg.inv(L)
 
     def poll(self):
         """Polls the forcefield checking if there are requests that should
@@ -642,14 +621,50 @@ class FFSirius(ForceField):
         """A wrapper function to call the SIRIUS DFT_ground_state
         and return forces."""
 
-
         pos = r["pos"]
-        ctx = self.ctx
+        ih = r["cell"][1]
 
         pos = pos.reshape(-1, 3)
-        sirius.set_atom_positions(ctx.unit_cell(),
-                           np.mod(np.dot(self.invL, pos.T).T, 1))
-        self.dft_gs.update()
+
+        rpos = np.dot(ih, pos.T).T
+        rpos = np.mod(rpos, 1)
+        print('rpos:', rpos)
+        siriusJson = json.load(open('sirius.json', 'r'))
+
+        # update position in json
+        atoms = siriusJson["unit_cell"]["atoms"]
+        offset = 0
+        for atom_label in atoms:
+            na = len(atoms[atom_label])
+            lpos = rpos[offset:offset+na, :]
+            atoms[atom_label] = [list(x) for x in lpos]
+            print 'setting positions: ', np.array(atoms[atom_label])
+
+        self.ctx = sirius.Simulation_context(json.dumps(siriusJson))
+        self.ctx.initialize()
+        if "shiftk" in siriusJson["parameters"]:
+            shiftk = siriusJson["parameters"]["shiftk"]
+        else:
+            shiftk = [0, 0, 0]
+        if "ngridk" in siriusJson["parameters"]:
+            ngridk = siriusJson["parameters"]["ngridk"]
+        else:
+            ngridk = [1, 1, 1]
+
+        # sirius.set_atom_positions(ctx.unit_cell(),
+        #             np.mod(np.dot(self.invL, pos.T).T, 1))
+        use_symmetry = siriusJson['parameters']['use_symmetry']
+        self.num_dft_iter = siriusJson["parameters"]["num_dft_iter"]
+        self.potential_tol = siriusJson["parameters"]["potential_tol"]
+        self.energy_tol = siriusJson["parameters"]["energy_tol"]
+        self.kpointset = sirius.K_point_set(self.ctx, ngridk, shiftk, use_symmetry)
+        self.dft_gs = sirius.DFT_ground_state(self.kpointset)
+        self.dft_gs.initial_state()
+        # L = np.array(self.ctx.unit_cell().lattice_vectors())
+        # self.invL = np.linalg.inv(L)
+        # sirius.set_atom_positions(ctx.unit_cell(),
+        #                    np.mod(np.dot(self.invL, pos.T).T, 1))
+        # self.dft_gs.update()
 
         rjson = self.dft_gs.find(
             self.potential_tol,
@@ -670,14 +685,15 @@ class FFSirius(ForceField):
     def mtd_update(self, pos, cell):
         """ Makes updates to the potential that only need to be triggered
         upon completion of a time step. """
-        from sirius import set_atom_positions
+        # from sirius import set_atom_positions
 
-        cell = cell
-        self.invL = np.linalg.inv(np.array(cell))
-        self.ctx.unit_cell().set_lattice_vectors(*cell)
-        set_atom_positions(self.ctx,
-                           np.mod(np.dot(self.invL,
-                                         pos.reshape(-1, 3).T).T, 1))
+        # cell = cell
+        # self.invL = np.linalg.inv(np.array(cell))
+        # self.ctx.unit_cell().set_lattice_vectors(*cell)
+        # set_atom_positions(self.ctx,
+        #                    np.mod(np.dot(self.invL,
+        #                                  pos.reshape(-1, 3).T).T, 1))
+        raise Exception('not implemented')
 
         return True
 
