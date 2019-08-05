@@ -80,9 +80,7 @@ class Cell(dobject):
         """
 
         s = np.dot(self.ih, atom.q)
-
-        for i in range(3):
-            s[i] = s[i] - round(s[i])
+        s = np.mod(s, 1)
 
         return np.dot(self.h, s)
 
