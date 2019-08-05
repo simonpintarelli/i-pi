@@ -1,0 +1,35 @@
+<simulation verbosity='high'>
+  <output prefix='simulation'>
+    <properties stride='1' filename='out'>  [ step, time{femtosecond}, conserved, temperature{kelvin}, kinetic_cv, potential, pressure_cv{bar}, volume ] </properties>
+    <trajectory stride='1' filename='pos' cell_units='atomic_unit'> positions{atomic_unit} </trajectory>
+  </output>
+  <total_steps>100</total_steps>
+  <prng>
+    <seed>3141</seed>
+  </prng>
+  <ffsirius name="sirius">
+     <siriusjson>sirius.json</siriusjson>
+  </ffsirius>
+  <system>
+    <forces>
+      <force forcefield="sirius"/>
+    </forces>
+    <initialize nbeads='4'>
+      <file mode='pdb'> init.pdb </file>
+      <velocities mode='thermal' units='kelvin'> 150 </velocities>
+    </initialize>
+    <ensemble>
+      <temperature units='kelvin'>100</temperature>
+    </ensemble>
+    <motion mode='dynamics'>
+      <dynamics mode='nvt'>
+        <thermostat mode='pile_l'>
+          <tau units='femtosecond'>200</tau>
+          <ethermo>0.0</ethermo>
+        </thermostat>
+        <timestep units='femtosecond'>0.5</timestep>
+      </dynamics>
+      <fixcom>True</fixcom>
+    </motion>
+  </system>
+</simulation>
