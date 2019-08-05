@@ -38,6 +38,66 @@ The `PYTHONPATH` must be set accordingly, e.g for the CMAKE_INSTALL_PREFIX speci
    export PYTHONPATH=${HOME}/local/sirius/lib/python2.7/site-packages
 
 
-More detailed installation instructions can be found in the `Sirius readme`_.
+More detailed installation instructions can be found in the `SIRIUS readme`_.
 
 .. _Sirius Readme: https://github.com/electronic-structure/SIRIUS/tree/develop
+
+
+SIRIUS input file
+=================
+
+.. code-block:: json
+
+  {
+      "control" : {
+          "processing_unit" : "cpu",
+          "std_evp_solver_type" : "lapack",
+          "gen_evp_solver_type" : "lapack",
+          "verbosity" : 0
+      },
+
+      "parameters" : {
+          "electronic_structure_method" : "pseudopotential",
+          "xc_functionals" : ["XC_GGA_X_PBE", "XC_GGA_C_PBE"],
+          "smearing_width" : 0.00025,
+          "num_mag_dims" : 0,
+          "gk_cutoff" : 7,
+          "pw_cutoff" : 25.00,
+          "use_symmetry": false,
+          "ngridk" : [1, 1, 1],
+          "num_dft_iter": 30,
+          "potential_tol": 1e-8,
+          "energy_tol": 1e-8,
+          "gamma_point": true
+      },
+      "iterative_solver" : {
+          "type" : "davidson",
+          "converge_by_energy" : 1
+      },
+      "unit_cell" : {
+          "lattice_vectors" : [ [1.0, 0.0, 0.0],
+                                [0.0, 1.0, 0.0],
+                                [0.0, 0.0, 1.0]
+                              ],
+          "lattice_vectors_scale": 10,
+          "atom_coordinate_units": "au",
+          "atom_types" : ["H", "O"],
+          "atom_files" : {
+              "H"  : "H.json",
+              "O"  : "O.json"
+          },
+          "atoms" : {
+              "H": [
+                  [2.000, 0.000, 0.000],
+                  [0.000, 0.000, 0.000]
+              ],
+              "O": [
+                  [1.000, 0.000, 0.000]
+              ]
+          }
+      },
+      "mixer" : {
+          "beta" : 0.8
+      }
+
+  }
