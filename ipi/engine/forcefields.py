@@ -669,6 +669,172 @@ class FFPlumed(ForceField):
 
         return True
 
+try:
+    import json
+    from mpi4py import MPI
+    import sirius
+    have_sirius = True
+except:
+    have_sirius = False
+
+class FFSirius(ForceField):
+    def __init__(self,
+                 latency=1,
+                 name="",
+                 pars=None,
+                 dopbc=True,
+                 sirius_config="sirius.json",
+                 restart=True):
+        super(FFSirius, self).__init__(latency, name, pars, dopbc=dopbc)
+
+        self.sirius_restart = restart
+        print 'in FFSirius.init'
+        if not have_sirius:
+            raise ImportError("Cannot find sirius libraries to link to a FFSirius object/")
+
+        self.siriusjson = sirius_config
+        siriusJson = json.load(open(sirius_config, 'r'))
+        comm = sirius.make_sirius_comm(MPI.COMM_SELF)
+        self.ctx = sirius.Simulation_context(json.dumps(siriusJson), comm)
+        self.ctx.initialize()
+        if "shiftk" in siriusJson["parameters"]:
+            shiftk = siriusJson["parameters"]["shiftk"]
+        else:
+            shiftk = [0, 0, 0]
+        if "ngridk" in siriusJson["parameters"]:
+            ngridk = siriusJson["parameters"]["ngridk"]
+        else:
+            ngridk = [1, 1, 1]
+
+        self.num_dft_iter = siriusJson["parameters"]["num_dft_iter"]
+        self.potential_tol = siriusJson["parameters"]["potential_tol"]
+        self.energy_tol = siriusJson["parameters"]["energy_tol"]
+        use_symmetry = False
+        self.kset = sirius.K_point_set(self.ctx, ngridk, shiftk, use_symmetry)
+        self.dft_gs = sirius.DFT_ground_state(self.kset)
+        self.dft_gs.initial_state()
+
+
+    def poll(self):
+        """Polls the forcefield checking if there are requests that should
+        be answered, and if necessary evaluates the associated forces and energy."""
+
+        # We have to be thread-safe, as in multi-system mode this might get
+        # called by many threads at once.
+        with self._threadlock:
+            for r in self.requests:
+                if r["status"] == "Queued":
+                    r["status"] = "Running"
+                    r["t_dispatched"] = time.time()
+                    self.evaluate(r)
+
+    def evaluate(self, r):
+        """A wrapper function to call the SIRIUS DFT_ground_state
+        and return forces."""
+
+        # helper function
+        def periodic_dist(a, b):
+            d = np.abs(b-a)
+            dp = np.fmin(d, 1-d)
+            return np.linalg.norm(dp, ord='fro')
+
+        ctx = self.ctx
+        ih = r["cell"][1]
+        cell = r["cell"][0]
+        pos = r["pos"].reshape(-1, 3)
+        rpos = np.mod(np.dot(ih, pos.T).T, 1)
+
+        prev_rpos = sirius.atom_positions(ctx.unit_cell())
+        dx2 = periodic_dist(rpos, prev_rpos)
+
+        sirius.set_atom_positions(ctx.unit_cell(), rpos)
+        self.ctx.unit_cell().set_lattice_vectors(*cell)
+        self.dft_gs.update()
+
+        natoms = rpos.shape[0]
+        if dx2 / natoms > 1e-2 or self.sirius_restart:
+            self.dft_gs.initial_state()
+
+        sirius.initialize_subspace(self.dft_gs, self.ctx)
+
+        rjson = self.dft_gs.find(
+            potential_tol=self.potential_tol,
+            energy_tol=self.energy_tol,
+            initial_tol=1e-2,
+            num_dft_iter=self.num_dft_iter,
+            write_state=False)
+        if not rjson["converged"]:
+            raise ValueError('SIRIUS did not converge')
+
+        forces = np.array(self.dft_gs.forces().calc_forces_total()).T
+        assert forces.shape[1] == 3
+        v = self.dft_gs.total_energy()
+
+        cell_volume = np.linalg.det(r["cell"][0])
+        stress = np.array(self.dft_gs.stress().calc_stress_total())
+        vir = -1 * stress * cell_volume
+        r["result"] = [v, forces.reshape(-1), vir, ""]
+        r["status"] = "Done"
+        r["t_finished"] = time.time()
+
+try:
+    from mpi4py import MPI
+    from ipi.sirius.context import SiriusCTX
+    have_sirius_mpi = True
+except:
+    have_sirius_mpi = False
+
+
+class FFSiriusMPI(ForceField):
+
+    def __init__(self,
+                 latency=1,
+                 name="",
+                 pars=None,
+                 dopbc=True,
+                 sirius_config="sirius.json",
+                 restart=True):
+
+        super(FFSiriusMPI, self).__init__(latency, name, pars, dopbc, threaded=True)
+        self.sirius_config = sirius_config
+        self.siriusjson = json.dumps(json.load(open(sirius_config, 'r')))
+        self.sirius_restart = restart
+
+        if not have_sirius_mpi:
+            raise ImportError("Cannot find sirius libraries to link to a FFSiriusMPI object/")
+
+    def poll(self):
+        """Polls the forcefield checking if there are requests that should
+        be answered, and if necessary evaluates the associated forces and energy."""
+
+        # We have to be thread-safe, as in multi-system mode this might get
+        # called by many threads at once.
+        with self._threadlock:
+            mpi_requests = []
+            pending_requests = filter(lambda x: x['status'] == 'Queued',
+                                      self.requests)
+            for r in pending_requests:
+                r["status"] = "Running"
+                r["t_dispatched"] = time.time()
+                req = self.evaluate(r)
+                mpi_requests.append(req)
+            results = MPI.Request.waitall(mpi_requests)
+            assert len(results) == len(pending_requests)
+            for i, r in enumerate(pending_requests):
+                res = results[i]
+                for k in res.keys():
+                    r[k] = res[k]
+
+    def evaluate(self, r):
+        """A wrapper function to call the SIRIUS DFT_ground_state
+        and return forces."""
+        pool_size = MPI.pool_size
+        r['sirius_restart'] = self.sirius_restart
+        dest = (r['id'] % pool_size) + 1
+        future = MPI.executor.submit({'func': SiriusCTX.run, 'payload': r},
+                                     dest=dest)
+        return future
+
 
 class FFYaff(ForceField):
 

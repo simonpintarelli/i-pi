@@ -8,14 +8,14 @@
 from copy import copy
 import numpy as np
 
-from ipi.engine.forcefields import ForceField, FFSocket, FFLennardJones, FFQUIP, FFDebye, FFPlumed, FFYaff
+from ipi.engine.forcefields import ForceField, FFSocket, FFLennardJones, FFQUIP, FFDebye, FFPlumed, FFYaff, FFSirius, FFSiriusMPI
 from ipi.interfaces.sockets import InterfaceSocket
 import ipi.engine.initializer
 from ipi.inputs.initializer import *
 from ipi.utils.inputvalue import *
 
 
-__all__ = ["InputFFSocket", 'InputFFLennardJones', 'InputFFQUIP', 'InputFFDebye', 'InputFFPlumed', 'InputFFYaff']
+__all__ = ["InputFFSocket", 'InputFFLennardJones', 'InputFFQUIP', 'InputFFDebye', 'InputFFPlumed', 'InputFFYaff', 'InputFFSirius', 'InputFFSiriusMPI']
 
 
 class InputForceField(Input):
@@ -173,7 +173,7 @@ class InputFFSocket(InputForceField):
             raise ValueError("FFSockets cannot poll without threaded mode.")
         # just use threaded throughout
         return FFSocket(pars=self.parameters.fetch(), name=self.name.fetch(), latency=self.latency.fetch(), dopbc=self.pbc.fetch(),
-                        active=self.activelist.fetch(), threaded=self.threaded.fetch(), 
+                        active=self.activelist.fetch(), threaded=self.threaded.fetch(),
                         interface=InterfaceSocket(address=self.address.fetch(), port=self.port.fetch(),
                                                  slots=self.slots.fetch(), mode=self.mode.fetch(), timeout=self.timeout.fetch(),
                                                  match_mode=self.matching.fetch()))
@@ -223,11 +223,11 @@ class InputFFLennardJones(InputForceField):
 
 class InputFFQUIP(InputForceField):
 
-    fields = { 
+    fields = {
         "init_file": (InputValue, {"dtype": str, "default": None, "help": "An extended xyz file that initializes the system."}),
         "args_str": (InputValue, {"dtype": str, "default": None, "help": "A string that identifies the type of interaction potential."}),
         "param_file": (InputValue, {"dtype": str, "default": None, "help": "An xml file that contains the parameters of the interaction potential."})
-    }   
+    }
 
     fields.update(InputForceField.fields)
 
@@ -312,6 +312,75 @@ class InputFFPlumed(InputForceField):
         return FFPlumed(name=self.name.fetch(), latency=self.latency.fetch(), dopbc=self.pbc.fetch(),
                         threaded=self.threaded.fetch(), plumeddat=self.plumeddat.fetch(),
                         plumedstep=self.plumedstep.fetch(), init_file=self.init_file.fetch())
+
+
+class InputFFSirius(InputForceField):
+    fields = {
+        "siriusjson": (InputValue, {"dtype": str, "default": "sirius.json", "help": "The SIRIUS json file"}),
+        "restart": (InputValue, {"dtype": bool, "default": False, "help": "restart sirius"}),
+    }
+
+    attribs = {}
+
+    attribs.update(InputForceField.attribs)
+    fields.update(InputForceField.fields)
+
+    default_help = """ Direct SIRIUS interface """
+    default_label = "FFSirius"
+
+    def store(self, ff):
+        """
+        Keyword Arguments:
+        self --
+        ff   --
+        """
+        super(InputFFSirius, self).store(ff)
+
+        self.siriusjson.store(ff.siriusjson)
+
+    def fetch(self,):
+        """
+        Keyword Arguments:
+        self --
+        """
+
+        super(InputFFSirius, self).fetch()
+        return FFSirius(name=self.name.fetch(), sirius_config=self.siriusjson.fetch())
+
+
+class InputFFSiriusMPI(InputForceField):
+    fields = {
+        "siriusjson": (InputValue, {"dtype": str, "default": "sirius.json", "help": "The SIRIUS json file"}),
+        "sirius_restart": (InputValue, {"dtype": bool, "default": False, "help": "restart sirius"}),
+    }
+
+    attribs = {}
+
+    attribs.update(InputForceField.attribs)
+    fields.update(InputForceField.fields)
+
+    default_help = """ Direct SIRIUS interface """
+    default_label = "FFSiriusMPI"
+
+    def store(self, ff):
+        """
+        Keyword Arguments:
+        self --
+        ff   --
+        """
+        super(InputFFSiriusMPI, self).store(ff)
+        self.siriusjson.store(ff.siriusjson)
+        self.sirius_restart.store(ff.sirius_restart)
+
+    def fetch(self,):
+        """
+        Keyword Arguments:
+        self --
+        """
+
+        print 'InputFFSiriusMPI.fetch'
+        super(InputFFSiriusMPI, self).fetch()
+        return FFSiriusMPI(name=self.name.fetch(), sirius_config=self.siriusjson.fetch(), restart=self.sirius_restart.fetch())
 
 
 class InputFFYaff(InputForceField):
