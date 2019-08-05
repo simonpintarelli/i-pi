@@ -8,21 +8,20 @@
 
     "parameters" : {
         "electronic_structure_method" : "pseudopotential",
-        "xc_functionals" : ["XC_LDA_X", "XC_LDA_C_PZ"],
-        "smearing_width" : 0.0025,
+        "xc_functionals": ["XC_GGA_X_PBE", "XC_GGA_C_PBE"],
+        "smearing_width" : 0.00025,
         "num_mag_dims" : 0,
         "gk_cutoff" : 7.0,
-        "pw_cutoff" : 25.00,
+        "pw_cutoff" : 21.00,
         "use_symmetry": false,
         "ngridk" : [1, 1, 1],
         "num_dft_iter": 100,
-        "potential_tol": 1e-8,
-        "energy_tol": 1e-8,
+        "potential_tol": 1e-10,
+        "energy_tol": 1e-10,
         "gamma_point": true
     },
     "iterative_solver" : {
-        "type" : "davidson",
-        "converge_by_energy" : 1
+        "type" : "davidson"
     },
     "unit_cell" : {
         "lattice_vectors" : [ [1.0, 0.0, 0.0],
