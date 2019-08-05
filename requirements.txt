@@ -5,3 +5,5 @@ pytest-cov
 mock
 flake8
 coverage
+dill
+mpi4py

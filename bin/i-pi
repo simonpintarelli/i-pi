@@ -27,8 +27,10 @@ dir_root = os.path.realpath(
 if not dir_root in sys.path:
     sys.path.insert(0, dir_root)
 
+from mpi4py import MPI
 from ipi.utils.softexit import softexit
 from ipi.engine.simulation import Simulation
+from ipi.mpi.pool import Executor
 
 
 def main(fn_input, options):
@@ -88,6 +90,8 @@ if __name__ == '__main__':
     parser.add_option('-V', '--verbosity', dest='verbosity', default=None,
                       choices=['quiet', 'low', 'medium', 'high', 'debug'],
                       help='Define the verbosity level.')
+    parser.add_option('-n', '--numworkers', dest='nworkers', default=1,
+                      type=int, help='Number of MPI pools')
 
     options, args = parser.parse_args()
 
@@ -100,6 +104,9 @@ if __name__ == '__main__':
         fn_in = args[0]
         if not os.path.exists(fn_in):
             parser.error('Input file not found: {:s}'.format(fn_in))
-
     # Everything is ready. Go!
-    main(args[0], options)
+    with Executor(ngroups=options.nworkers) as executor:
+        if executor is not None:
+            MPI.pool_size = options.nworkers
+            MPI.executor = executor
+            main(args[0], options)
