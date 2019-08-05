@@ -1,3 +1,5 @@
 numpy
 pytest
 pytest-mock
+dill
+mpi4py
