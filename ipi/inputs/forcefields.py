@@ -527,7 +527,6 @@ class InputFFSiriusMPI(InputForceField):
         self --
         """
 
-        print 'InputFFSiriusMPI.fetch'
         super(InputFFSiriusMPI, self).fetch()
         return FFSiriusMPI(name=self.name.fetch(), sirius_config=self.siriusjson.fetch(), restart=self.sirius_restart.fetch())
 
