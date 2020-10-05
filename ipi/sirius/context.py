@@ -110,7 +110,7 @@ class SiriusCTX:
             num_dft_iter=self.num_dft_iter,
             write_state=False)
         if not rjson["converged"]:
-            print 'SIRIUS failed to converge!'
+            print('SIRIUS failed to converge!')
             assert False
 
         forces = np.array(self.dft_gs.forces().calc_forces_total()).T
