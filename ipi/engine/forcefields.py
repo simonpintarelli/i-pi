@@ -674,7 +674,6 @@ class FFSirius(ForceField):
         super(FFSirius, self).__init__(latency, name, pars, dopbc=dopbc)
 
         self.sirius_restart = restart
-        print 'in FFSirius.init'
         if not have_sirius:
             raise ImportError("Cannot find sirius libraries to link to a FFSirius object/")
 
@@ -817,6 +816,8 @@ class FFSiriusMPI(ForceField):
         pool_size = MPI.pool_size
         r['sirius_restart'] = self.sirius_restart
         dest = (r['id'] % pool_size) + 1
+        import dill
+        print('dill.dumps siriusCTX: len = ', len(dill.dumps(SiriusCTX.run)))
         future = MPI.executor.submit({'func': SiriusCTX.run, 'payload': r},
                                      dest=dest)
         return future
